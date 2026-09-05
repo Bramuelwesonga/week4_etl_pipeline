@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pipeline Control — Daily Operations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f13;
+    --panel:#131b22;
+    --panel-2:#0f161c;
+    --edge:#24313a;
+    --edge-lit:#3a4c58;
+    --metal-a:#2b3740;
+    --metal-b:#141c22;
+    --text:#d9e3e8;
+    --muted:#7d8f9a;
+    --amber:#ffb02e;
+    --cyan:#36e6c4;
+    --red:#ff5a5f;
+    --lcd-bg:#04100c;
+    --lcd:#36e6c4;
+    --lcd-dim:#1c5c50;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(54,230,196,0.05), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(255,176,46,0.06), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:"JetBrains Mono", ui-monospace, monospace;
+    min-height:100vh;
+  }
+  h1,h2,h3{font-family:"Space Grotesk", ui-sans-serif, sans-serif; margin:0;}
+  main{width:min(1180px, calc(100% - 28px)); margin:0 auto; padding:26px 0 40px;}
+
+  .nameplate{
+    display:flex; align-items:center; justify-content:space-between; gap:18px;
+    background:linear-gradient(180deg, var(--panel), var(--panel-2));
+    border:1px solid var(--edge);
+    border-radius:10px;
+    padding:18px 22px;
+    margin-bottom:16px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 20px 40px rgba(0,0,0,0.35);
+  }
+  .nameplate .id{ color:var(--muted); font-size:0.72rem; letter-spacing:0.14em; margin-bottom:6px; }
+  .nameplate h1{ font-size:clamp(1.4rem, 2.6vw, 2.1rem); color:var(--text); font-weight:700; }
+  .nameplate .sub{ color:var(--muted); font-size:0.85rem; margin-top:6px; max-width:520px; line-height:1.5; }
+  .lamp-rack{ display:flex; gap:14px; align-items:center; }
+  .lamp{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .lamp .bulb{ width:20px; height:20px; border-radius:50%; background:#1b2530; box-shadow: inset 0 2px 4px rgba(0,0,0,0.6); transition: background 0.3s, box-shadow 0.3s; }
+  .lamp .bulb.on.good{ background:radial-gradient(circle at 35% 30%, #baffef, var(--cyan) 60%); box-shadow:0 0 14px 3px rgba(54,230,196,0.65), inset 0 0 6px rgba(255,255,255,0.5); }
+  .lamp .bulb.on.warn{ background:radial-gradient(circle at 35% 30%, #ffe8c0, var(--amber) 60%); box-shadow:0 0 14px 3px rgba(255,176,46,0.65), inset 0 0 6px rgba(255,255,255,0.5); }
+  .lamp .bulb.on.bad{ background:radial-gradient(circle at 35% 30%, #ffd0d1, var(--red) 60%); box-shadow:0 0 14px 3px rgba(255,90,95,0.65), inset 0 0 6px rgba(255,255,255,0.5); }
+  .lamp span{ font-size:0.62rem; letter-spacing:0.1em; color:var(--muted); }
+
+  .control-strip{
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
+    background:var(--panel-2); border:1px solid var(--edge); border-radius:10px; padding:14px 18px; margin-bottom:18px;
+  }
+  .switch-group{ display:flex; gap:10px; align-items:center; }
+  .switch-label{ color:var(--muted); font-size:0.7rem; letter-spacing:0.1em; margin-right:4px; }
+  .toggle{
+    position:relative; width:150px; height:40px; border-radius:8px;
+    background:linear-gradient(180deg, #1a232b, #0e1418);
+    border:1px solid var(--edge); cursor:pointer; overflow:hidden;
+    display:flex; align-items:center; font-size:0.72rem; font-weight:700; letter-spacing:0.05em;
+  }
+  .toggle .half{ flex:1; text-align:center; z-index:1; color:var(--muted); transition:color 0.25s; padding:4px; }
+  .toggle .slider{
+    position:absolute; top:2px; left:2px; width:calc(50% - 4px); height:calc(100% - 4px);
+    border-radius:6px; background:linear-gradient(180deg, var(--metal-a), var(--metal-b));
+    box-shadow:0 0 0 1px var(--edge-lit), 0 4px 10px rgba(0,0,0,0.4);
+    transition:transform 0.28s cubic-bezier(.4,1.4,.6,1);
+  }
+  .toggle.bad .slider{ transform:translateX(100%); }
+  .toggle.clean .half.clean, .toggle.bad .half.bad{ color:var(--text); }
+
+  button.run-btn, button.reset-btn{
+    appearance:none; border:0; cursor:pointer;
+    font-family:"Space Grotesk", sans-serif; font-weight:700; font-size:0.85rem; letter-spacing:0.03em;
+    padding:11px 22px; border-radius:8px; color:#06120d;
+  }
+  button.run-btn{ background:linear-gradient(180deg, #52f3d2, var(--cyan)); box-shadow:0 8px 18px rgba(54,230,196,0.28), inset 0 1px 0 rgba(255,255,255,0.5); }
+  button.reset-btn{ background:linear-gradient(180deg, #3a4650, #232d34); color:var(--text); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); border:1px solid var(--edge-lit); }
+  button:disabled{ opacity:0.45; cursor:wait; }
+
+  .main-grid{ display:grid; grid-template-columns: 300px minmax(0,1fr); gap:16px; margin-bottom:16px; }
+  @media (max-width: 860px){ .main-grid{ grid-template-columns: 1fr; } }
+
+  .process-rail{ position:relative; background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:22px 18px 22px 54px; }
+  .rail-line{ position:absolute; left:34px; top:34px; bottom:34px; width:6px; border-radius:4px; background:linear-gradient(180deg, #1c262e, #10171c); box-shadow: inset 0 0 0 1px var(--edge); }
+  .rail-fill{ position:absolute; left:34px; top:34px; width:6px; height:0%; border-radius:4px; background:linear-gradient(180deg, var(--cyan), #1c8f79); transition:height 0.5s ease; }
+  .rail-fill.bad{ background:linear-gradient(180deg, var(--red), #7c2326); }
+  .flow-dot{
+    position:absolute; left:26px; top:34px; width:22px; height:22px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #d6fff4, var(--cyan));
+    box-shadow:0 0 16px 4px rgba(54,230,196,0.55);
+    transition: top 0.5s ease, background 0.3s;
+    z-index:3;
+  }
+  .flow-dot.bad{ background:radial-gradient(circle at 35% 30%, #ffd7d8, var(--red)); box-shadow:0 0 16px 4px rgba(255,90,95,0.55); }
+
+  .station{ position:relative; display:flex; gap:14px; padding:14px 0; z-index:2; }
+  .station .node{
+    flex:none; width:44px; height:44px; border-radius:10px;
+    background:linear-gradient(160deg, var(--metal-a), var(--metal-b));
+    border:1px solid var(--edge-lit); display:grid; place-items:center; font-size:1.15rem;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 6px 12px rgba(0,0,0,0.35);
+    color:var(--muted); transition: color 0.3s, box-shadow 0.3s, border-color 0.3s;
+  }
+  .station.active .node{ color:var(--cyan); border-color:var(--cyan); box-shadow:0 0 0 3px rgba(54,230,196,0.18), 0 6px 12px rgba(0,0,0,0.35); }
+  .station.done .node{ color:var(--cyan); }
+  .station.fail .node{ color:var(--red); border-color:var(--red); box-shadow:0 0 0 3px rgba(255,90,95,0.18); }
+  .station .info{ padding-top:2px; }
+  .station h3{ font-size:0.92rem; color:var(--text); }
+  .station .desc{ color:var(--muted); font-size:0.74rem; margin-top:3px; line-height:1.4; max-width:190px; }
+  .station .state{ display:inline-block; margin-top:6px; font-size:0.62rem; letter-spacing:0.09em; color:var(--muted); border:1px solid var(--edge); border-radius:4px; padding:2px 6px; }
+  .station.active .state{ color:var(--cyan); border-color:var(--cyan); }
+  .station.done .state{ color:var(--cyan); border-color:var(--edge-lit); }
+  .station.fail .state{ color:var(--red); border-color:var(--red); }
+
+  .readout-stack{ display:grid; gap:16px; grid-template-rows:auto auto 1fr; }
+
+  .lcd-panel{ background:var(--lcd-bg); border:1px solid #0e2b23; border-radius:10px; padding:16px 18px; display:grid; grid-template-columns:repeat(3,1fr); gap:10px; box-shadow: inset 0 0 24px rgba(54,230,196,0.06); }
+  .lcd-cell{ text-align:center; }
+  .lcd-cell .val{ font-size:1.9rem; font-weight:700; color:var(--lcd); text-shadow:0 0 10px rgba(54,230,196,0.55); letter-spacing:0.02em; }
+  .lcd-cell .lab{ color:var(--lcd-dim); font-size:0.62rem; letter-spacing:0.12em; margin-top:2px; }
+
+  .gauge-row{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .gauge-card{ background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:14px; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .gauge-card .g-label{ color:var(--muted); font-size:0.68rem; letter-spacing:0.09em; }
+  .gauge{ width:112px; height:64px; position:relative; }
+  .gauge svg{ width:100%; height:100%; overflow:visible; }
+  .gauge .needle{ transform-origin:56px 56px; transition:transform 0.6s cubic-bezier(.4,1.2,.4,1); }
+  .gauge .g-value{ position:absolute; bottom:-2px; left:0; right:0; text-align:center; font-size:0.78rem; color:var(--text); font-weight:700; }
+
+  .terminal{ background:#060a0c; border:1px solid var(--edge); border-radius:10px; padding:14px 16px; overflow-y:auto; max-height:220px; }
+  .terminal .t-head{ color:var(--muted); font-size:0.68rem; letter-spacing:0.1em; margin-bottom:8px; }
+  .t-line{ font-size:0.78rem; line-height:1.65; white-space:pre-wrap; }
+  .t-line.good{ color:var(--cyan); }
+  .t-line.bad{ color:var(--red); }
+  .t-line.idle{ color:var(--muted); }
+  .cursor{ display:inline-block; width:7px; height:13px; background:var(--cyan); vertical-align:-2px; animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  .footer-strip{ display:grid; grid-template-columns: 1fr 260px; gap:16px; }
+  @media (max-width:860px){ .footer-strip{ grid-template-columns:1fr; } }
+  .memo{ background:repeating-linear-gradient(180deg, #10171d 0px, #10171d 27px, #16202650 28px); border:1px solid var(--edge); border-left:4px solid var(--amber); border-radius:8px; padding:16px 18px; }
+  .memo h2{ font-size:1rem; color:var(--text); margin-bottom:10px; }
+  .memo ul{ margin:0; padding-left:18px; color:var(--muted); font-size:0.82rem; line-height:1.8; }
+  .memo li::marker{ color:var(--amber); }
+
+  .tank{ background:var(--panel); border:1px solid var(--edge); border-radius:8px; padding:14px 16px; display:flex; flex-direction:column; justify-content:space-between; }
+  .tank .t-title{ color:var(--muted); font-size:0.68rem; letter-spacing:0.1em; }
+  .tank .t-rows{ font-size:1.5rem; color:var(--text); font-weight:700; margin-top:6px; }
+  .tank .t-note{ color:var(--muted); font-size:0.74rem; margin-top:10px; line-height:1.5; }
+  .tank .t-bar{ height:8px; border-radius:4px; background:#0d1a17; margin-top:10px; overflow:hidden; }
+  .tank .t-bar-fill{ height:100%; width:100%; background:linear-gradient(90deg, var(--cyan), #1c8f79); transition:width 0.6s ease, background 0.4s; }
+  .tank .t-bar-fill.bad{ background:linear-gradient(90deg, var(--red), #7c2326); }
+</style>
+</head>
+<body>
+<main>
+
+  <section class="nameplate">
+    <div>
+      <div class="id">UNIT 04 · SENSOR SNAPSHOT LINE</div>
+      <h1>Pipeline Control — Daily Operations</h1>
+      <div class="sub">Run the line to watch raw sensor rows move through extraction, cleaning, the quality gate, loading, and logging. Trip the gate on purpose with the bad-data feed.</div>
+    </div>
+    <div class="lamp-rack">
+      <div class="lamp"><div class="bulb" id="lampGood"></div><span>RUNNING</span></div>
+      <div class="lamp"><div class="bulb" id="lampWarn"></div><span>GATE</span></div>
+      <div class="lamp"><div class="bulb" id="lampBad"></div><span>HALTED</span></div>
+    </div>
+  </section>
+
+  <section class="control-strip">
+    <div class="switch-group">
+      <span class="switch-label">FEED</span>
+      <div class="toggle clean" id="feedToggle">
+        <div class="slider"></div>
+        <div class="half clean">CLEAN</div>
+        <div class="half bad">BAD DATA</div>
+      </div>
+    </div>
+    <div class="switch-group">
+      <button class="run-btn" id="runBtn" type="button">▶ Start run</button>
+      <button class="reset-btn" id="resetBtn" type="button">⟲ Reset</button>
+    </div>
+  </section>
+
+  <section class="main-grid">
+    <div class="process-rail">
+      <div class="rail-line"></div>
+      <div class="rail-fill" id="railFill"></div>
+      <div class="flow-dot" id="flowDot"></div>
+
+      <div class="station" data-stage="0">
+        <div class="node">⇩</div>
+        <div class="info">
+          <h3>Extract</h3>
+          <div class="desc">Read sensor rows from the CSV / API source in .env</div>
+          <span class="state">idle</span>
+        </div>
+      </div>
+      <div class="station" data-stage="1">
+        <div class="node">⟳</div>
+        <div class="info">
+          <h3>Transform</h3>
+          <div class="desc">Standardize columns, drop duplicates and negative pressure</div>
+          <span class="state">idle</span>
+        </div>
+      </div>
+      <div class="station" data-stage="2">
+        <div class="node">⛨</div>
+        <div class="info">
+          <h3>Quality gate</h3>
+          <div class="desc">Six checks: timestamps, sensor IDs, pressure, temp, status</div>
+          <span class="state">idle</span>
+        </div>
+      </div>
+      <div class="station" data-stage="3">
+        <div class="node">▤</div>
+        <div class="info">
+          <h3>Load</h3>
+          <div class="desc">Replace today's snapshot so reruns never duplicate</div>
+          <span class="state">idle</span>
+        </div>
+      </div>
+      <div class="station" data-stage="4">
+        <div class="node">▥</div>
+        <div class="info">
+          <h3>Log</h3>
+          <div class="desc">Write start time, row counts, and outcome to pipeline.log</div>
+          <span class="state">idle</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="readout-stack">
+      <div class="lcd-panel">
+        <div class="lcd-cell"><div class="val" id="rowsIn">00</div><div class="lab">ROWS READ</div></div>
+        <div class="lcd-cell"><div class="val" id="rowsClean">00</div><div class="lab">ROWS CLEANED</div></div>
+        <div class="lcd-cell"><div class="val" id="rowsLoaded">00</div><div class="lab">ROWS LOADED</div></div>
+      </div>
+
+      <div class="gauge-row">
+        <div class="gauge-card">
+          <div class="g-label">QUALITY SCORE</div>
+          <div class="gauge">
+            <svg viewBox="0 0 112 64">
+              <path d="M8,56 A48,48 0 0,1 104,56" fill="none" stroke="#1b2830" stroke-width="10" stroke-linecap="round"/>
+              <path id="qualityArc" d="M8,56 A48,48 0 0,1 104,56" fill="none" stroke="#36e6c4" stroke-width="10" stroke-linecap="round" stroke-dasharray="150.8" stroke-dashoffset="150.8"/>
+              <line class="needle" id="qualityNeedle" x1="56" y1="56" x2="56" y2="18" stroke="#e7f5f1" stroke-width="3" stroke-linecap="round" transform="rotate(-90 56 56)"/>
+              <circle cx="56" cy="56" r="4" fill="#e7f5f1"/>
+            </svg>
+            <div class="g-value" id="qualityVal">—</div>
+          </div>
+        </div>
+        <div class="gauge-card">
+          <div class="g-label">THROUGHPUT</div>
+          <div class="gauge">
+            <svg viewBox="0 0 112 64">
+              <path d="M8,56 A48,48 0 0,1 104,56" fill="none" stroke="#1b2830" stroke-width="10" stroke-linecap="round"/>
+              <path id="throughputArc" d="M8,56 A48,48 0 0,1 104,56" fill="none" stroke="#ffb02e" stroke-width="10" stroke-linecap="round" stroke-dasharray="150.8" stroke-dashoffset="150.8"/>
+              <line class="needle" id="throughputNeedle" x1="56" y1="56" x2="56" y2="18" stroke="#e7f5f1" stroke-width="3" stroke-linecap="round" transform="rotate(-90 56 56)"/>
+              <circle cx="56" cy="56" r="4" fill="#e7f5f1"/>
+            </svg>
+            <div class="g-value" id="throughputVal">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="terminal">
+        <div class="t-head">pipeline.log — tail</div>
+        <div id="logLines"><div class="t-line idle">Standing by. Start a run to stream log lines here.<span class="cursor"></span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="footer-strip">
+    <div class="memo">
+      <h2>Why this beats a manual update</h2>
+      <ul>
+        <li>Same five steps, same order, every single day.</li>
+        <li>Bad rows never reach the final table — the gate trips first.</li>
+        <li>Rerunning today replaces today instead of stacking copies.</li>
+        <li>The log leaves a trail for diagnosing yesterday's run.</li>
+      </ul>
+    </div>
+    <div class="tank">
+      <div class="t-title">TARGET TABLE</div>
+      <div class="t-rows" id="tankRows">12 rows</div>
+      <div class="t-bar"><div class="t-bar-fill" id="tankBar"></div></div>
+      <div class="t-note" id="tankNote">Last good daily snapshot is safe.</div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const stations = Array.from(document.querySelectorAll(".station"));
+  const railFill = document.getElementById("railFill");
+  const flowDot = document.getElementById("flowDot");
+  const logLines = document.getElementById("logLines");
+  const feedToggle = document.getElementById("feedToggle");
+  const runBtn = document.getElementById("runBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const rowsIn = document.getElementById("rowsIn");
+  const rowsClean = document.getElementById("rowsClean");
+  const rowsLoaded = document.getElementById("rowsLoaded");
+  const lampGood = document.getElementById("lampGood");
+  const lampWarn = document.getElementById("lampWarn");
+  const lampBad = document.getElementById("lampBad");
+  const qualityArc = document.getElementById("qualityArc");
+  const qualityNeedle = document.getElementById("qualityNeedle");
+  const qualityVal = document.getElementById("qualityVal");
+  const throughputArc = document.getElementById("throughputArc");
+  const throughputNeedle = document.getElementById("throughputNeedle");
+  const throughputVal = document.getElementById("throughputVal");
+  const tankRows = document.getElementById("tankRows");
+  const tankBar = document.getElementById("tankBar");
+  const tankNote = document.getElementById("tankNote");
+
+  const ARC_LEN = 150.8;
+  let feed = "clean";
+
+  const cleanSteps = [
+    { stage:0, rowsIn:12, rowsClean:0,  rowsLoaded:0,  quality:null, log:"INFO  | Pipeline started",                          log2:"INFO  | Extracting CSV source: data/sensor_data.csv", tone:"good" },
+    { stage:1, rowsIn:12, rowsClean:12, rowsLoaded:0,  quality:null, log:"INFO  | Removed 0 duplicate rows",                   log2:"INFO  | Rows after transform: 12", tone:"good" },
+    { stage:2, rowsIn:12, rowsClean:12, rowsLoaded:0,  quality:100,  log:"INFO  | Six quality checks evaluated",               log2:"INFO  | Quality gate passed", tone:"good" },
+    { stage:3, rowsIn:12, rowsClean:12, rowsLoaded:12, quality:100,  log:"INFO  | Replacing snapshot date 2026-09-04",         log2:"INFO  | Rows loaded: 12", tone:"good" },
+    { stage:4, rowsIn:12, rowsClean:12, rowsLoaded:12, quality:100,  log:"INFO  | Run summary written to pipeline.log",        log2:"INFO  | Pipeline finished successfully", tone:"good" }
+  ];
+
+  const badSteps = [
+    { stage:0, rowsIn:12, rowsClean:0,  rowsLoaded:0, quality:null, log:"INFO  | Pipeline started",                                     log2:"INFO  | Extracting CSV source: data/sensor_data_bad_example.csv", tone:"good" },
+    { stage:1, rowsIn:12, rowsClean:11, rowsLoaded:0, quality:null, log:"INFO  | Removed 0 duplicate rows",                              log2:"INFO  | Filtered 1 negative-pressure row — rows after transform: 11", tone:"good" },
+    { stage:2, rowsIn:12, rowsClean:11, rowsLoaded:0, quality:33,   log:"WARN  | Null sensor ID · duplicate timestamp · pressure over 200 psi · unrecognized status", log2:"ERROR | Quality gate failed. Load step halted.", tone:"bad", fail:true },
+    { stage:4, rowsIn:12, rowsClean:11, rowsLoaded:0, quality:33,   log:"INFO  | Load step skipped — target table untouched",             log2:"ERROR | Pipeline failed: Quality gate failed. Load step halted.", tone:"bad" }
+  ];
+
+  function setLamps(state){
+    lampGood.className = "bulb" + (state==="running" ? " on good" : "");
+    lampWarn.className = "bulb" + (state==="gate" ? " on warn" : "");
+    lampBad.className  = "bulb" + (state==="halted" ? " on bad" : "");
+  }
+
+  function resetSim(){
+    stations.forEach(s => { s.classList.remove("active","done","fail"); s.querySelector(".state").textContent = "idle"; });
+    railFill.style.height = "0%";
+    railFill.classList.remove("bad");
+    flowDot.style.top = "34px";
+    flowDot.classList.remove("bad");
+    logLines.innerHTML = '<div class="t-line idle">Standing by. Start a run to stream log lines here.<span class="cursor"></span></div>';
+    rowsIn.textContent = "00"; rowsClean.textContent = "00"; rowsLoaded.textContent = "00";
+    setGauge(qualityArc, qualityNeedle, qualityVal, null, "cyan");
+    setGauge(throughputArc, throughputNeedle, throughputVal, null, "amber");
+    setLamps("idle");
+    tankRows.textContent = "12 rows";
+    tankBar.style.width = "100%";
+    tankBar.classList.remove("bad");
+    tankNote.textContent = "Last good daily snapshot is safe.";
+  }
+
+  function pad(n){ return String(n).padStart(2,"0"); }
+
+  function setGauge(arc, needle, label, pct, color){
+    if(pct === null){
+      arc.style.strokeDashoffset = ARC_LEN;
+      needle.setAttribute("transform","rotate(-90 56 56)");
+      label.textContent = "—";
+      return;
+    }
+    const clamped = Math.max(0, Math.min(100, pct));
+    arc.style.stroke = color === "amber" ? "#ffb02e" : (clamped < 60 ? "#ff5a5f" : "#36e6c4");
+    arc.style.strokeDashoffset = ARC_LEN - (ARC_LEN * clamped / 100);
+    const angle = -90 + (clamped/100)*180;
+    needle.setAttribute("transform", `rotate(${angle} 56 56)`);
+    label.textContent = clamped + "%";
+  }
+
+  function addLog(text, tone){
+    if(logLines.querySelector(".idle")) logLines.innerHTML = "";
+    const prevCursor = logLines.querySelector(".cursor");
+    if(prevCursor) prevCursor.remove();
+    const line = document.createElement("div");
+    line.className = "t-line " + (tone === "bad" ? "bad" : "good");
+    line.innerHTML = text;
+    logLines.appendChild(line);
+    const cursorLine = document.createElement("span");
+    cursorLine.className = "cursor";
+    logLines.appendChild(cursorLine);
+    logLines.scrollTop = logLines.scrollHeight;
+  }
+
+  function updateStation(step){
+    stations.forEach((s) => {
+      s.classList.remove("active");
+      const idx = Number(s.dataset.stage);
+      if(idx < step.stage){ s.classList.add("done"); s.querySelector(".state").textContent = "done"; }
+    });
+    const current = stations[step.stage];
+    if(step.fail){ current.classList.add("fail"); current.querySelector(".state").textContent = "stopped"; }
+    else { current.classList.add("active"); current.querySelector(".state").textContent = "running"; }
+
+    const pctTop = (step.stage / 4) * 100;
+    railFill.style.height = pctTop + "%";
+    flowDot.style.top = `${34 + pctTop * 3.6}px`;
+    if(step.tone === "bad"){ railFill.classList.add("bad"); flowDot.classList.add("bad"); }
+
+    rowsIn.textContent = pad(step.rowsIn);
+    rowsClean.textContent = pad(step.rowsClean);
+    rowsLoaded.textContent = pad(step.rowsLoaded);
+
+    if(step.quality !== null) setGauge(qualityArc, qualityNeedle, qualityVal, step.quality, "cyan");
+    const throughputPct = step.rowsIn ? Math.round((step.rowsLoaded / step.rowsIn) * 100) : null;
+    setGauge(throughputArc, throughputNeedle, throughputVal, step.stage>=3 ? throughputPct : null, "amber");
+
+    setLamps(step.fail ? "halted" : (step.stage===2 ? "gate" : "running"));
+
+    addLog(step.log, step.tone);
+    addLog(step.log2, step.tone);
+  }
+
+  async function runScenario(){
+    resetSim();
+    runBtn.disabled = true; resetBtn.disabled = true; feedToggle.style.pointerEvents = "none";
+    const steps = feed === "bad" ? badSteps : cleanSteps;
+
+    for(const step of steps){
+      updateStation(step);
+      await new Promise(r => setTimeout(r, 1050));
+    }
+
+    if(feed === "clean"){
+      stations.forEach(s => { s.classList.remove("active","fail"); s.classList.add("done"); s.querySelector(".state").textContent = "done"; });
+      tankRows.textContent = "12 rows";
+      tankBar.style.width = "100%"; tankBar.classList.remove("bad");
+      tankNote.textContent = "Snapshot replaced cleanly — rerun leaves the same 12 rows.";
+      setLamps("idle");
+    } else {
+      stations[3].querySelector(".state").textContent = "skipped";
+      stations[4].classList.add("done");
+      stations[4].querySelector(".state").textContent = "done";
+      tankRows.textContent = "12 rows (unchanged)";
+      tankBar.style.width = "100%"; tankBar.classList.add("bad");
+      tankNote.textContent = "Bad rows never reached the target table.";
+      setLamps("halted");
+    }
+
+    runBtn.disabled = false; resetBtn.disabled = false; feedToggle.style.pointerEvents = "auto";
+  }
+
+  feedToggle.addEventListener("click", () => {
+    feed = feed === "clean" ? "bad" : "clean";
+    feedToggle.classList.toggle("bad", feed === "bad");
+    feedToggle.classList.toggle("clean", feed === "clean");
+  });
+  runBtn.addEventListener("click", runScenario);
+  resetBtn.addEventListener("click", resetSim);
+
+  resetSim();
+</script>
+</body>
+</html>
